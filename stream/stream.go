@@ -17,7 +17,7 @@ import (
 	"github.com/satoshun/twitter/types"
 )
 
-type TwitterStreamApi struct {
+type TwitterStreamAPI struct {
 	*types.TwitterConfig
 	Timestamp string
 	Nonce     string
@@ -44,8 +44,8 @@ func dialTimeout(network, addr string) (net.Conn, error) {
 	return net.DialTimeout(network, addr, time.Duration(10*time.Second))
 }
 
-func NewTwitterStream(token, secret, consumerKey, consumerSecret string) *TwitterStreamApi {
-	return &TwitterStreamApi{
+func NewTwitterStream(token, secret, consumerKey, consumerSecret string) *TwitterStreamAPI {
+	return &TwitterStreamAPI{
 		TwitterConfig: &types.TwitterConfig{
 			Token:          token,
 			TokenSecret:    secret,
@@ -57,9 +57,9 @@ func NewTwitterStream(token, secret, consumerKey, consumerSecret string) *Twitte
 	}
 }
 
-func (t *TwitterStreamApi) Filter(track string) <-chan types.Tweet {
+func (t *TwitterStreamAPI) Filter(track string) <-chan types.Tweet {
 	t.track = track
-	tweets := make(chan types.Tweet, 10)
+	tweets := make(chan types.Tweet, 1000)
 
 	go func() {
 		defer close(tweets)
@@ -123,11 +123,11 @@ func (t *TwitterStreamApi) Filter(track string) <-chan types.Tweet {
 	return tweets
 }
 
-func (t *TwitterStreamApi) Sample() <-chan types.Tweet {
+func (t *TwitterStreamAPI) Sample() <-chan types.Tweet {
 	return t.Filter("")
 }
 
-func (t *TwitterStreamApi) do(req *http.Request) (*http.Response, error) {
+func (t *TwitterStreamAPI) do(req *http.Request) (*http.Response, error) {
 	t.setHeader(req)
 
 	transport := &http.Transport{
@@ -138,7 +138,7 @@ func (t *TwitterStreamApi) do(req *http.Request) (*http.Response, error) {
 	return client.Do(req)
 }
 
-func (t *TwitterStreamApi) setHeader(req *http.Request) {
+func (t *TwitterStreamAPI) setHeader(req *http.Request) {
 	a := "OAuth " +
 		fmt.Sprintf("oauth_consumer_key=%s, ", t.ConsumerKey) +
 		fmt.Sprintf("oauth_nonce=%s, ", t.Nonce) +
@@ -151,7 +151,7 @@ func (t *TwitterStreamApi) setHeader(req *http.Request) {
 	req.Header.Set("Authorization", a)
 }
 
-func (t *TwitterStreamApi) signature() string {
+func (t *TwitterStreamAPI) signature() string {
 	values := url.Values{}
 	values.Add("oauth_consumer_key", t.ConsumerKey)
 	values.Add("oauth_nonce", t.Nonce)
@@ -164,7 +164,7 @@ func (t *TwitterStreamApi) signature() string {
 		values.Add("track", t.track)
 	}
 
-	baseString := "GET&" + url.QueryEscape(t.targetUrl()) + "&" + url.QueryEscape(values.Encode())
+	baseString := "GET&" + url.QueryEscape(t.targetURL()) + "&" + url.QueryEscape(values.Encode())
 	signKey := []byte(t.ConsumerSecret + "&" + t.TokenSecret)
 	mac := hmac.New(sha1.New, signKey)
 	mac.Write([]byte(baseString))
@@ -174,7 +174,7 @@ func (t *TwitterStreamApi) signature() string {
 	return enc
 }
 
-func (t *TwitterStreamApi) targetUrl() string {
+func (t *TwitterStreamAPI) targetURL() string {
 	if t.track == "" {
 		return SAMPLE_URL
 	}
@@ -182,10 +182,10 @@ func (t *TwitterStreamApi) targetUrl() string {
 	return FILTER_URL
 }
 
-func (t *TwitterStreamApi) targetPath() string {
+func (t *TwitterStreamAPI) targetPath() string {
 	if t.track == "" {
-		return t.targetUrl()
+		return t.targetURL()
 	}
 
-	return t.targetUrl() + "?track=" + t.track
+	return t.targetURL() + "?track=" + t.track
 }
